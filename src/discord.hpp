@@ -15,6 +15,7 @@ class Discord {
     void RunCallbacks();
     void TrackStatusChange(bool playing, int64_t position);
     void Destroy();
+    void ClearActivity();
 
     discord::Core* core;
 

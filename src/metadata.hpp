@@ -14,6 +14,7 @@ class MetadataHandler {
 
     Discord* GetRPC();
     void Destroy();
+    void LoadProperties();
 
     GDBusProxy* properties;
 

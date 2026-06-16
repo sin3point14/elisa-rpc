@@ -108,6 +108,16 @@ void Discord::Destroy() {
     }
 }
 
+void Discord::ClearActivity() {
+    if (is_init) {
+        core->ActivityManager().ClearActivity([](discord::Result result) {
+            if (result != discord::Result::Ok) {
+                std::cerr << "Failed clearing activity, code: " << static_cast<int>(result) << std::endl;
+            }
+        });
+    }
+}
+
 void Discord::Init() {
     if (core) {
         delete core;

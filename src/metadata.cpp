@@ -122,9 +122,23 @@ static void PropertiesChanged(GDBusProxy* proxy, GVariant* changed_properties, G
     rpc->UpdateActivity(metadata);
 }
 
-MetadataHandler::MetadataHandler(Discord* discord) {
-    GVariant* ret;
+static void NameOwnerChanged(GObject* gobject, GParamSpec* pspec, gpointer user_data) {
+    MetadataHandler* handler = (MetadataHandler*)user_data;
+    GDBusProxy* proxy = G_DBUS_PROXY(gobject);
+    gchar* owner = g_dbus_proxy_get_name_owner(proxy);
 
+    if (owner == NULL) {
+        std::cout << "[Metadata] Elisa vanished (closed). Clearing Discord presence." << std::endl;
+        metadata.clear();
+        handler->GetRPC()->ClearActivity();
+    } else {
+        std::cout << "[Metadata] Elisa appeared (started). Loading properties..." << std::endl;
+        handler->LoadProperties();
+        g_free(owner);
+    }
+}
+
+MetadataHandler::MetadataHandler(Discord* discord) {
     rpc.reset(discord);
 
     loop = nullptr;
@@ -133,7 +147,6 @@ MetadataHandler::MetadataHandler(Discord* discord) {
     player = NULL;
     properties = NULL;
     error = NULL;
-    ret = NULL;
 
     player =
         g_dbus_proxy_new_for_bus_sync(G_BUS_TYPE_SESSION, G_DBUS_PROXY_FLAGS_NONE, NULL, "org.mpris.MediaPlayer2.elisa",
@@ -155,15 +168,37 @@ MetadataHandler::MetadataHandler(Discord* discord) {
         return;
     }
 
+    LoadProperties();
+
+    loop = new std::thread([this]() {
+        gloop = g_main_loop_new(NULL, FALSE);
+
+        if (g_signal_connect(player, "g-properties-changed", G_CALLBACK(PropertiesChanged), this) <= 0) {
+            std::cout << "Failed to connect to signal PropertiesChanged" << std::endl;
+            exit(-1);
+        }
+
+        if (g_signal_connect(player, "notify::g-name-owner", G_CALLBACK(NameOwnerChanged), this) <= 0) {
+            std::cout << "Failed to connect to signal notify::g-name-owner" << std::endl;
+            exit(-1);
+        }
+
+        g_main_loop_run(gloop);
+    });
+}
+
+void MetadataHandler::LoadProperties() {
+    GVariant* ret = NULL;
+    GError* local_error = NULL;
+
     ret = g_dbus_proxy_call_sync(properties, "GetAll", g_variant_new("(s)", "org.mpris.MediaPlayer2.Player"),
-                                 G_DBUS_CALL_FLAGS_NONE, -1, NULL, &error);
+                                 G_DBUS_CALL_FLAGS_NONE, -1, NULL, &local_error);
 
-    if (error) {
-        gint code = error->code;
-        gchar* message = g_strdup(error->message);
+    if (local_error) {
+        gint code = local_error->code;
+        gchar* message = g_strdup(local_error->message);
 
-        g_error_free(error);
-        error = NULL;
+        g_error_free(local_error);
 
         if (code == G_DBUS_ERROR_SERVICE_UNKNOWN) {
             std::cerr << "Cannot get track metadata, is Elisa open?" << std::endl;
@@ -187,17 +222,6 @@ MetadataHandler::MetadataHandler(Discord* discord) {
 
         g_variant_unref(ret);
     }
-
-    loop = new std::thread([this]() {
-        gloop = g_main_loop_new(NULL, FALSE);
-
-        if (g_signal_connect(player, "g-properties-changed", G_CALLBACK(PropertiesChanged), this) <= 0) {
-            std::cout << "Failed to connect to signal PropertiesChanged" << std::endl;
-            exit(-1);
-        }
-
-        g_main_loop_run(gloop);
-    });
 }
 
 Discord* MetadataHandler::GetRPC() {
