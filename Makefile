@@ -12,7 +12,7 @@ VPATH    := $(shell find $(SRCDIR) external/discord -type d -print | tr '\n' ':'
 OBJ      := $(addprefix $(OBJDIR)/, $(notdir $(SRC:.cpp=.o)))
 DEP      := $(addprefix $(OBJDIR)/, $(notdir $(SRC:.cpp=.d)))
 
-LDFLAGS  += -Lexternal/discord/lib/$(ARCH) -l:discord_game_sdk.so
+LDFLAGS  += -Lexternal/discord/lib/$(ARCH) -l:discord_game_sdk.so -Wl,-rpath,$(PREFIX)/lib
 
 all: $(EXE)
 
