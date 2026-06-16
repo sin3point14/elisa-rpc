@@ -26,10 +26,12 @@ options:
 $(OBJDIR): ; mkdir -p $@
 
 $(OBJ): $(OBJDIR)/%.o : %.cpp $(OBJDIR)/%.d | $(OBJDIR)
+	@mkdir -p $(@D)
 	$(CXX) -c $(CXXFLAGS) -o $@ $<
 
 # https://stackoverflow.com/a/39003791
 $(DEP): $(OBJDIR)/%.d: %.cpp | $(OBJDIR)
+	@mkdir -p $(@D)
 	@set -e; rm -f $@; \
          $(CC) -M $(CXXFLAGS) $< > $@.$$$$; \
          sed 's,\($*\)\.o[ :]*,\1.o $@ : ,g' < $@.$$$$ > $@; \
