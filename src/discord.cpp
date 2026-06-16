@@ -43,6 +43,7 @@ void Discord::UpdateActivity(std::map<std::string, std::string> metadata) {
     format["album"] = "album";
     format["artist"] = "artist";
     format["playing"] = "PlaybackStatus";
+    format["spent"] = "spent";
 
     for (auto& key : status) {
         for (auto& fmt : format) {

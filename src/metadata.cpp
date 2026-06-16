@@ -1,5 +1,6 @@
 #include "metadata.hpp"
 
+#include <cstdio>
 #include <iostream>
 #include <sstream>
 #include <thread>
@@ -108,16 +109,36 @@ static void UpdateTrack(Discord* rpc, bool playing, GDBusProxy* properties) {
     rpc->TrackStatusChange(playing, position);
 }
 
+static std::string format_time(int64_t seconds) {
+    int64_t h = seconds / 3600;
+    int64_t m = (seconds % 3600) / 60;
+    int64_t s = seconds % 60;
+    char buf[32];
+    if (h > 0) {
+        snprintf(buf, sizeof(buf), "%02ld:%02ld:%02ld", h, m, s);
+    } else {
+        snprintf(buf, sizeof(buf), "%02ld:%02ld", m, s);
+    }
+    return std::string(buf);
+}
+
+static gboolean TickTime(gpointer user_data) {
+    MetadataHandler* handler = (MetadataHandler*)user_data;
+    handler->Tick();
+    return TRUE;
+}
+
 static void PropertiesChanged(GDBusProxy* proxy, GVariant* changed_properties, GStrv invalidated_parameters,
                               gpointer user_data) {
     MetadataHandler* handler = (MetadataHandler*)user_data;
     Discord* rpc = handler->GetRPC();
 
     dict_to_metadata(changed_properties);
+    handler->OnPropertiesUpdated();
 
     if (g_variant_lookup_value(changed_properties, "PlaybackStatus", G_VARIANT_TYPE_STRING) &&
         metadata.count("PlaybackStatus"))
-        UpdateTrack(rpc, metadata["PlaybackStatus"] == "Playing", handler->properties);
+        UpdateTrack(rpc, handler->is_playing, handler->properties);
 
     rpc->UpdateActivity(metadata);
 }
@@ -130,6 +151,9 @@ static void NameOwnerChanged(GObject* gobject, GParamSpec* pspec, gpointer user_
     if (owner == NULL) {
         std::cout << "[Metadata] Elisa vanished (closed). Clearing Discord presence." << std::endl;
         metadata.clear();
+        handler->is_playing = false;
+        handler->accumulated_seconds = 0;
+        handler->current_track_id.clear();
         handler->GetRPC()->ClearActivity();
     } else {
         std::cout << "[Metadata] Elisa appeared (started). Loading properties..." << std::endl;
@@ -147,6 +171,11 @@ MetadataHandler::MetadataHandler(Discord* discord) {
     player = NULL;
     properties = NULL;
     error = NULL;
+
+    is_playing = false;
+    accumulated_seconds = 0;
+    current_track_id = "";
+    last_tick_time = std::chrono::steady_clock::now();
 
     player =
         g_dbus_proxy_new_for_bus_sync(G_BUS_TYPE_SESSION, G_DBUS_PROXY_FLAGS_NONE, NULL, "org.mpris.MediaPlayer2.elisa",
@@ -183,6 +212,8 @@ MetadataHandler::MetadataHandler(Discord* discord) {
             exit(-1);
         }
 
+        g_timeout_add_seconds(1, TickTime, this);
+
         g_main_loop_run(gloop);
     });
 }
@@ -214,13 +245,44 @@ void MetadataHandler::LoadProperties() {
 
         if (dict) {
             dict_to_metadata(dict);
-            UpdateTrack(rpc.get(), metadata["PlaybackStatus"] == "Playing", properties);
+            OnPropertiesUpdated();
+            UpdateTrack(rpc.get(), is_playing, properties);
             rpc->UpdateActivity(metadata);
 
             g_variant_unref(dict);
         }
 
         g_variant_unref(ret);
+    }
+}
+
+void MetadataHandler::OnPropertiesUpdated() {
+    std::string new_track_id = metadata["trackid"];
+    if (new_track_id != current_track_id) {
+        current_track_id = new_track_id;
+        accumulated_seconds = 0;
+        last_tick_time = std::chrono::steady_clock::now();
+    }
+
+    bool playing = (metadata["PlaybackStatus"] == "Playing");
+    if (playing != is_playing) {
+        is_playing = playing;
+        last_tick_time = std::chrono::steady_clock::now();
+    }
+
+    metadata["spent"] = format_time(accumulated_seconds);
+}
+
+void MetadataHandler::Tick() {
+    if (is_playing) {
+        auto now = std::chrono::steady_clock::now();
+        auto elapsed = std::chrono::duration_cast<std::chrono::seconds>(now - last_tick_time).count();
+        if (elapsed >= 1) {
+            accumulated_seconds += elapsed;
+            last_tick_time = now;
+            metadata["spent"] = format_time(accumulated_seconds);
+            rpc->UpdateActivity(metadata);
+        }
     }
 }
 
