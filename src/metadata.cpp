@@ -153,6 +153,7 @@ static void NameOwnerChanged(GObject* gobject, GParamSpec* pspec, gpointer user_
         metadata.clear();
         handler->is_playing = false;
         handler->accumulated_seconds = 0;
+        handler->current_loop_count = 1;
         handler->current_track_id.clear();
         handler->GetRPC()->ClearActivity();
     } else {
@@ -174,6 +175,7 @@ MetadataHandler::MetadataHandler(Discord* discord) {
 
     is_playing = false;
     accumulated_seconds = 0;
+    current_loop_count = 1;
     current_track_id = "";
     last_tick_time = std::chrono::steady_clock::now();
 
@@ -261,6 +263,7 @@ void MetadataHandler::OnPropertiesUpdated() {
     if (new_track_id != current_track_id) {
         current_track_id = new_track_id;
         accumulated_seconds = 0;
+        current_loop_count = 1;
         last_tick_time = std::chrono::steady_clock::now();
     }
 
@@ -268,6 +271,27 @@ void MetadataHandler::OnPropertiesUpdated() {
     if (playing != is_playing) {
         is_playing = playing;
         last_tick_time = std::chrono::steady_clock::now();
+    }
+
+    int64_t duration = 0;
+    if (metadata.count("length") && !metadata["length"].empty()) {
+        try {
+            duration = std::stoll(metadata["length"]) / 1000000;
+        } catch (...) {
+            duration = 0;
+        }
+    }
+
+    if (duration > 0) {
+        current_loop_count = (accumulated_seconds / duration) + 1;
+    } else {
+        current_loop_count = 1;
+    }
+
+    if (current_loop_count > 1) {
+        metadata["loop"] = " (Loop #" + std::to_string(current_loop_count) + ")";
+    } else {
+        metadata["loop"] = "";
     }
 
     metadata["spent"] = format_time(accumulated_seconds);
@@ -281,7 +305,30 @@ void MetadataHandler::Tick() {
             accumulated_seconds += elapsed;
             last_tick_time = now;
             metadata["spent"] = format_time(accumulated_seconds);
-            rpc->UpdateActivity(metadata);
+
+            int64_t duration = 0;
+            if (metadata.count("length") && !metadata["length"].empty()) {
+                try {
+                    duration = std::stoll(metadata["length"]) / 1000000;
+                } catch (...) {
+                    duration = 0;
+                }
+            }
+
+            int64_t loop_count = 1;
+            if (duration > 0) {
+                loop_count = (accumulated_seconds / duration) + 1;
+            }
+
+            if (loop_count != current_loop_count) {
+                current_loop_count = loop_count;
+                if (loop_count > 1) {
+                    metadata["loop"] = " (Loop #" + std::to_string(loop_count) + ")";
+                } else {
+                    metadata["loop"] = "";
+                }
+                rpc->UpdateActivity(metadata);
+            }
         }
     }
 }

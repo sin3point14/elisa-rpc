@@ -7,6 +7,6 @@
     "large_image_text": "",
     "swap_small_images": false,
     "clear_on_pause": false,
-    "details": "%track%",
+    "details": "%track%%loop%",
     "state": "%artist%"
 }
