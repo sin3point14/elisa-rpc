@@ -56,4 +56,11 @@ Copy "config-template.json" to `$HOME/.config/elisa-rpc/config.json`
 | `%playing%` | The current playback status ("Playing", "Paused", "Stopped") |
 
 
+### Systemd Service
+To enable and start the program automatically on login:
+```
+$ systemctl --user daemon-reload
+$ systemctl --user enable --now elisa-rpc.service
+```
+
 This program is licensed under the MIT license.

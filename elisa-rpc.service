@@ -1,0 +1,11 @@
+[Unit]
+Description=Elisa Discord Rich Presence Client
+After=network.target
+
+[Service]
+Type=simple
+ExecStart=/usr/local/bin/elisa-rpc
+Restart=always
+
+[Install]
+WantedBy=default.target

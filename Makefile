@@ -46,10 +46,12 @@ clean:
 install: $(EXE)
 	install -D -m 755 -t $(PREFIX)/lib external/discord/lib/$(ARCH)/discord_game_sdk.so
 	install -D -m 755 -t $(PREFIX)/bin $(EXE)
+	install -D -m 644 elisa-rpc.service $(PREFIX)/lib/systemd/user/elisa-rpc.service
 
 uninstall:
 	rm -rf $(PREFIX)/lib/discord_game_sdk.so
 	rm -rf $(PREFIX)/bin/$(notdir $(EXE))
+	rm -rf $(PREFIX)/lib/systemd/user/elisa-rpc.service
 
 run: $(OBJDIR)/elisa-rpc
 	@$< || true
