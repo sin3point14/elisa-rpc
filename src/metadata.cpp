@@ -77,7 +77,7 @@ static void dict_to_metadata(GVariant* dict) {
     }
 }
 
-static void UpdateTrack(Discord* rpc, bool playing, GDBusProxy* properties) {
+static void UpdateTrack(Discord* rpc, bool playing, GDBusProxy* properties, int64_t accumulated_seconds) {
     int64_t position;
     GVariant* ret;
     GError* error;
@@ -106,7 +106,7 @@ static void UpdateTrack(Discord* rpc, bool playing, GDBusProxy* properties) {
         g_variant_unref(ret);
     }
 
-    rpc->TrackStatusChange(playing, position);
+    rpc->TrackStatusChange(playing, position, accumulated_seconds);
 }
 
 static std::string format_time(int64_t seconds) {
@@ -138,7 +138,7 @@ static void PropertiesChanged(GDBusProxy* proxy, GVariant* changed_properties, G
 
     if (g_variant_lookup_value(changed_properties, "PlaybackStatus", G_VARIANT_TYPE_STRING) &&
         metadata.count("PlaybackStatus"))
-        UpdateTrack(rpc, handler->is_playing, handler->properties);
+        UpdateTrack(rpc, handler->is_playing, handler->properties, handler->accumulated_seconds);
 
     rpc->UpdateActivity(metadata);
 }
@@ -246,7 +246,7 @@ void MetadataHandler::LoadProperties() {
         if (dict) {
             dict_to_metadata(dict);
             OnPropertiesUpdated();
-            UpdateTrack(rpc.get(), is_playing, properties);
+            UpdateTrack(rpc.get(), is_playing, properties, accumulated_seconds);
             rpc->UpdateActivity(metadata);
 
             g_variant_unref(dict);

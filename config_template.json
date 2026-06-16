@@ -8,5 +8,5 @@
     "swap_small_images": false,
     "clear_on_pause": false,
     "details": "%track%",
-    "state": "%artist%\n%spent%"
+    "state": "%artist%"
 }

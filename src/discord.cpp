@@ -65,23 +65,19 @@ void Discord::UpdateActivity(std::map<std::string, std::string> metadata) {
     }
 }
 
-void Discord::TrackStatusChange(bool playing, int64_t position) {
+void Discord::TrackStatusChange(bool playing, int64_t position, int64_t accumulated_seconds) {
     const bool use_paused_image = (!playing || config.swap_small_images);
-    int64_t now = std::chrono::seconds(std::time(NULL)).count();
     this->playing = playing;
 
-    if (playing) {
-        activity.GetTimestamps().SetStart(now - (position / 10e5));
-    } else {
-        memset(&activity.GetTimestamps(), 0, sizeof(discord::ActivityTimestamps));
+    activity.GetTimestamps().SetStart(0);
+    activity.GetTimestamps().SetEnd(0);
 
-        if (config.clear_on_pause) {
-            core->ActivityManager().ClearActivity([](discord::Result result) {
-                if (result != discord::Result::Ok) {
-                    std::cerr << "Failed clearing activity, code: " << static_cast<int>(result) << std::endl;
-                }
-            });
-        }
+    if (!playing && config.clear_on_pause) {
+        core->ActivityManager().ClearActivity([](discord::Result result) {
+            if (result != discord::Result::Ok) {
+                std::cerr << "Failed clearing activity, code: " << static_cast<int>(result) << std::endl;
+            }
+        });
     }
 
     activity.GetAssets().SetSmallImage(use_paused_image ? config.paused_image_key.c_str()

@@ -13,7 +13,7 @@ class Discord {
 
     void UpdateActivity(std::map<std::string, std::string> metadata);
     void RunCallbacks();
-    void TrackStatusChange(bool playing, int64_t position);
+    void TrackStatusChange(bool playing, int64_t position, int64_t accumulated_seconds);
     void Destroy();
     void ClearActivity();
 
